@@ -18,21 +18,13 @@ x load commands params from file
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/gophergala/cmdporter/vp/nec"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"path"
 	"text/template"
-)
-
-var (
-	SerialPortStatus bool = false
-	g_Device         Device
 )
 
 type CmdRequest struct {
@@ -78,15 +70,16 @@ func ParseBody(r *http.Request) []byte {
 }
 
 func main() {
-	g_Device = nec.Nec_m271_m311
-	LoadCommands(g_Device)
+	mainDevice := new(Device)
+	mainDevice.Connect("/dev/tty.usb", 9600)
+	mainDevice.Config("devices/vp_nec_m271_m311.json")
 
 	// Start Http Server
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
 		content := map[string]interface{}{
-			"SerialPortStatus": SerialPortStatus,
-			"Device":           g_Device.GetName(),
+			"SerialPortStatus": mainDevice.Status,
+			"Device":           mainDevice,
 		}
 
 		Render(w, "index.html", content)
@@ -103,14 +96,19 @@ func main() {
 			}
 
 			// Search for submited command on device
-			commands := g_Device.GetCommandsList()
-			if ok := commands[req.Command]; ok != nil {
-				fmt.Printf("Found command : %s => %v\n", req.Command, commands[req.Command])
-				g_Device.DoCmd(req.Command)
-				res.Data = "Success"
-				jsonRes, _ := json.Marshal(res)
-				fmt.Fprintf(w, "%s", string(jsonRes))
-				return
+			for _, value := range mainDevice.Commands {
+				if req.Command == value.Name {
+					fmt.Printf("Found command : %s\n", req.Command)
+					err := mainDevice.DoCommand(req.Command)
+					if err != nil {
+						res.Error = err.Error()
+					} else {
+						res.Data = "Success"
+					}
+					jsonRes, _ := json.Marshal(res)
+					fmt.Fprintf(w, "%s", string(jsonRes))
+					return
+				}
 			}
 
 			// Command not found in device commands list
@@ -122,66 +120,57 @@ func main() {
 		w.WriteHeader(http.StatusNotFound)
 	})
 
+	http.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			res := CmdResponse{nil, nil}
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+			if mainDevice.Status {
+				res.Error = "DeviceAlreadyConnected"
+			} else {
+				err := mainDevice.Connect("/dev/tty.usb", 9600)
+				if mainDevice.Status == false && err != nil {
+					res.Error = "FailedConnectDevice"
+				} else {
+					res.Data = "DeviceConnected"
+				}
+			}
+
+			jsonRes, _ := json.Marshal(res)
+			fmt.Fprintf(w, "%s", string(jsonRes))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	http.HandleFunc("/disconnect", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			res := CmdResponse{nil, nil}
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+			if mainDevice.Status == false {
+				res.Error = "DeviceAlreadyDisconnected"
+			} else {
+				err := mainDevice.Close()
+				if mainDevice.Status && err != nil {
+					res.Error = "FailedDisconnectDevice"
+				} else {
+					res.Data = "DeviceDisconnected"
+				}
+			}
+
+			jsonRes, _ := json.Marshal(res)
+			fmt.Fprintf(w, "%s", string(jsonRes))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})
+
 	fs := http.FileServer(http.Dir("assets"))
 	http.Handle("/assets/", http.StripPrefix("/assets/", fs))
 
-	log.Println("Running for device", g_Device.GetName())
+	//log.Println("Running for device", g_Device.GetName())
 	log.Println("Waiting for http connections on port 8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 
-}
-
-func LoadCommands(d Device) {
-	var err error
-
-	// Load json file into string
-	jsonbytes, err := ioutil.ReadFile(d.GetJsonPath())
-	if err != nil {
-		fmt.Printf("File error: %v\n", err)
-		os.Exit(-1)
-	}
-	json_string := string(jsonbytes)
-
-	// Load it into our intermediate struct containing string encoded commands either in base 10 or hexa
-	var IntermediateStruct = JSONCommands{}
-	err = json.Unmarshal([]byte(json_string), &IntermediateStruct)
-	if err != nil {
-		fmt.Println("err :", err)
-		os.Exit(-1)
-	}
-
-	// Convert these string encoded commands into bytes
-	for key, value := range IntermediateStruct.Commands {
-		command := value
-		for _, cvalue := range command.StringCodedBytes {
-			// TODO check whether string encoded commands actually begins with 0x, if not then it's base 10
-			cmd_bytes, err := hex.DecodeString(cvalue[2:])
-			if err != nil {
-				fmt.Println("err :", err)
-				os.Exit(-1)
-			}
-			// FIX this for commands containing more than one byte
-			IntermediateStruct.Commands[key].Bytes = append(IntermediateStruct.Commands[key].Bytes, cmd_bytes[0])
-		}
-	}
-
-	//CREATE A MAPPING FOR THE nec_m271_m311 COMMANDS
-	for _, IntermediateCmd := range IntermediateStruct.Commands {
-		d.RegisterCmd(IntermediateCmd.CommandName, IntermediateCmd.Bytes)
-	}
-	log.Println("test n :", IntermediateStruct.Name)
-	d.SetName(IntermediateStruct.Name)
-
-	log.Printf("Loaded %d commands for %s\n", d.GetNumCommands(), d.GetName())
-}
-
-type JSONCommands struct {
-	Name     string
-	Commands []JSONCommand
-}
-
-type JSONCommand struct {
-	CommandName      string
-	StringCodedBytes []string `json:"bytes"`
-	Bytes            []byte
 }

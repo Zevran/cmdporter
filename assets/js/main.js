@@ -24,7 +24,7 @@ $(document).ready(function () {
 					break;
 				default:
 					$(button).children(".glyphicon").removeClass("glyphicon-refresh").addClass("glyphicon-remove");
-					$("#message").html('Command ' + $(button).data("command") + 'failed :' + data.error);
+					$("#message").html('Command ' + $(button).data("command") + 'failed : ' + data.error);
 					$('#message').show();
 					setTimeout(function() {
 						$(button).children(".glyphicon").removeClass("glyphicon-remove").addClass("glyphicon-play");
@@ -43,6 +43,65 @@ $(document).ready(function () {
 			setTimeout(function() {
 				$("#message").hide();
 			}, 5000);
+		});
+	});
+
+	$('#connect').on('click', function () {
+		// Loading
+		button = this;
+		$(button).children(".glyphicon").removeClass("glyphicon-link").addClass("glyphicon-refresh");
+
+		// Send cmd request
+		$.ajax({
+			url: '/connect',
+			type: 'GET',
+		})
+		.done(function(data) {
+			// Stop loading
+			switch (data.error) {
+				case null:
+					break;
+				case "DeviceAlreadyConnected":
+				break;
+				case "FailedConnectDevice":
+				break;
+				default:
+					break;
+			}
+		})
+		.fail(function(error) {
+			// Stop loading
+			$(button).children(".glyphicon").removeClass("glyphicon-refresh").addClass("glyphicon-link");
+			console.log(error);
+		});
+	});
+		$('#disconnect').on('click', function () {
+		// Loading
+		button = this;
+		$(button).children(".glyphicon").removeClass("glyphicon-link").addClass("glyphicon-refresh");
+
+		// Send cmd request
+		$.ajax({
+			url: '/connect',
+			type: 'GET',
+		})
+		.done(function(data) {
+			// Stop loading
+			switch (data.error) {
+				case null:
+					break;
+				case "DeviceAlreadyDisconnected":
+				break;
+				case "FailedDisconnectDevice":
+				break;
+				default:
+					break;
+			}
+		})
+		.fail(function(error) {
+			// Stop loading
+			$(button).children(".glyphicon").removeClass("glyphicon-refresh").addClass("glyphicon-link");
+			console.log(error);
 		});
 	});
 });

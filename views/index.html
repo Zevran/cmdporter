@@ -1,5 +1,12 @@
-Serial Port : {{ if .SerialPortStatus}}<span class="label label-success">Connected</span>{{ else }}<span class="label label-danger">Disconnected</span>{{ end }}
-{{ .Device }}
+Serial Port : 
+{{ if .SerialPortStatus}}
+	<span class="label label-success">Connected</span><br><br>
+	<a id="disconnect" class="btn btn-default" href="javascript:;">Disconnect <span class="glyphicon glyphicon-link" aria-hidden="true"></span></a>
+{{ else }}
+	<span class="label label-danger">Disconnected</span><br><br>
+	<a id="connect" class="btn btn-default" href="javascript:;">Connect <span class="glyphicon glyphicon-link" aria-hidden="true"></span></a>
+{{ end }}
+
 {{ with .Device }}
 <h3>Device {{ .Name }}:</h3>
 	<div id="message" class="alert alert-danger" role="alert"></div>
@@ -7,6 +14,6 @@ Serial Port : {{ if .SerialPortStatus}}<span class="label label-success">Connect
 		<a class="btn btn-default command" data-command="{{.Name}}" href="javascript:;">
 			{{ .Name }} 
 			<span class="glyphicon glyphicon-play" aria-hidden="true"></span>
-		</a>
+		</a> 
 	{{ end }}
 {{ end }}
